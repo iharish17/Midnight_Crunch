@@ -48,11 +48,13 @@ router.post('/admin/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10)
     const token = crypto.randomBytes(32).toString('hex')
+    const tokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
     const result = await admins.insertOne({
       email: normalizedEmail,
       password: hashedPassword,
       sessionToken: token,
+      sessionTokenExpiry: tokenExpiry,
       createdAt: new Date(),
     })
 
@@ -100,10 +102,11 @@ router.post('/admin/login', async (req, res) => {
     }
 
     const token = crypto.randomBytes(32).toString('hex')
+    const tokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
     await admins.updateOne(
       { _id: admin._id },
-      { $set: { sessionToken: token, lastLogin: new Date() } }
+      { $set: { sessionToken: token, sessionTokenExpiry: tokenExpiry, lastLogin: new Date() } }
     )
 
     res.json({ token, admin: { id: admin._id, email: admin.email } })

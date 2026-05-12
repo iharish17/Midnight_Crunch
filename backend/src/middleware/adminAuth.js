@@ -16,6 +16,11 @@ export async function requireAdmin(req, res, next) {
       return res.status(401).json({ message: 'Invalid or expired token' })
     }
 
+    // Check if token has expired
+    if (admin.sessionTokenExpiry && new Date() > new Date(admin.sessionTokenExpiry)) {
+      return res.status(401).json({ message: 'Invalid or expired token' })
+    }
+
     req.admin = admin
     next()
   } catch (err) {
