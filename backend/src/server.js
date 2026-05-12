@@ -11,17 +11,29 @@ dotenv.config()
 const app = express()
 const port = process.env.PORT || 5000
 
-const allowedFrontendOrigins = [
-  process.env.FRONTEND_ORIGIN || 'http://127.0.0.1:5173',
+function normalizeOrigins(value) {
+  if (!value) return []
+
+  try {
+    return [new URL(value).origin]
+  } catch {
+    const host = value.replace(/^https?:\/\//, '').replace(/\/$/, '')
+    return [`https://${host}`, `http://${host}`]
+  }
+}
+
+const allowedFrontendOrigins = new Set([
+  ...normalizeOrigins(process.env.FRONTEND_ORIGIN),
+  'http://127.0.0.1:5173',
   'http://localhost:5173',
-]
+])
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // allow requests with no origin (like curl, mobile apps, or server-to-server)
       if (!origin) return callback(null, true)
-      if (allowedFrontendOrigins.includes(origin)) return callback(null, true)
+      if (allowedFrontendOrigins.has(origin)) return callback(null, true)
       return callback(new Error('CORS not allowed'))
     },
   }),
