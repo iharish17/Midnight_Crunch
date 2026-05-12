@@ -91,12 +91,11 @@ function LandingPage() {
         <div className="hero-copy">
           <p className="eyebrow">
             <Clock3 size={18} />
-            Hostel-only ordering till 12 AM
+            Hostel-only ordering till 10:30 PM
           </p>
-          <h1>Food for hostel nights, delivered straight to your room.</h1>
+          <h1>Food for late nights, delivered straight to your room.</h1>
           <p className="hero-text">
-            Order snacks, meals, drinks, and exam-night cravings from campus
-            counters without leaving your block.
+            Order your favourite one here, you want to eat today.
           </p>
 
           <form className="order-search" aria-label="Find your hostel">

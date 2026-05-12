@@ -121,7 +121,7 @@ function AuthPage({ mode, onAuthSuccess }) {
                 <Building2 size={19} />
                 <input
                   type="text"
-                  placeholder="Enter hostel and room number"
+                  placeholder="Enter hostel block and room number"
                   value={form.hostelAndRoom}
                   onChange={(e) => handleChange('hostelAndRoom', e.target.value)}
                   required
