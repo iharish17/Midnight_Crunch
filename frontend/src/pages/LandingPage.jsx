@@ -18,6 +18,7 @@ function LandingPage() {
   const [isLoggedIn] = useState(() => !!localStorage.getItem('userToken'))
   const [isAdminLoggedIn] = useState(() => !!localStorage.getItem('adminToken'))
   const [activeItem, setActiveItem] = useState(null)
+  const [orderQuantity, setOrderQuantity] = useState(1)
   const [isOrdering, setIsOrdering] = useState(false)
 
   useEffect(() => {
@@ -48,6 +49,7 @@ function LandingPage() {
     }
 
     setActiveItem(item)
+    setOrderQuantity(1)
   }
 
   async function confirmOrder() {
@@ -59,6 +61,9 @@ function LandingPage() {
       return
     }
 
+    const availableQuantity = Math.max(0, Number(activeItem.quantity) || 0)
+    const normalizedQuantity = Math.max(1, Math.min(parseInt(orderQuantity, 10) || 1, availableQuantity || 1))
+
     try {
       setIsOrdering(true)
       await createUserOrder(token, [
@@ -66,12 +71,13 @@ function LandingPage() {
           itemId: activeItem._id || activeItem.id,
           name: activeItem.name,
           price: Number(activeItem.price),
-          qty: 1,
+          qty: normalizedQuantity,
           imageUrl: activeItem.image_url || activeItem.imageUrl || '',
         },
       ])
-      showSuccess(`Order placed for ${activeItem.name}. Admin has been notified.`)
+      showSuccess(`Order placed for ${activeItem.name} (x${normalizedQuantity}). Admin has been notified.`)
       setActiveItem(null)
+      setOrderQuantity(1)
       // Refetch items to show updated quantity immediately
       const updatedData = await getFoodItems()
       const itemsList = Array.isArray(updatedData) ? updatedData : (updatedData.items || [])
@@ -82,6 +88,11 @@ function LandingPage() {
       setIsOrdering(false)
     }
   }
+
+  const unitPrice = Number(activeItem?.price) || 0
+  const maxQuantity = Math.max(1, Number(activeItem?.quantity) || 1)
+  const clampedQuantity = Math.max(1, Math.min(parseInt(orderQuantity, 10) || 1, maxQuantity))
+  const totalPayable = unitPrice * clampedQuantity
 
   return (
     <main className="page-shell">
@@ -196,11 +207,34 @@ function LandingPage() {
               <p>{activeItem.description}</p>
               <div className="order-summary-row">
                 <span>Item price</span>
-                <strong>Rs. {Number(activeItem.price).toFixed(2)}</strong>
+                <strong>Rs. {unitPrice.toFixed(2)}</strong>
+              </div>
+              <div className="order-summary-row">
+                <span>Quantity</span>
+                <div className="order-quantity-control">
+                  <input
+                    type="number"
+                    min="1"
+                    max={Math.max(1, Number(activeItem.quantity) || 1)}
+                    step="1"
+                    value={orderQuantity}
+                    onChange={(event) => {
+                      const nextValue = parseInt(event.target.value, 10)
+                      if (Number.isNaN(nextValue)) {
+                        setOrderQuantity('')
+                        return
+                      }
+                      const safeValue = Math.max(1, Math.min(nextValue, Math.max(1, Number(activeItem.quantity) || 1)))
+                      setOrderQuantity(safeValue)
+                    }}
+                    aria-label="Order quantity"
+                  />
+                  <small>Available: {activeItem.quantity || 0}</small>
+                </div>
               </div>
               <div className="order-summary-row total-row">
                 <span>Total payable</span>
-                <strong>Rs. {Number(activeItem.price).toFixed(2)}</strong>
+                <strong>Rs. {totalPayable.toFixed(2)}</strong>
               </div>
               <p className="order-note">This order will go directly to admin with your account and room details.</p>
             </div>

@@ -110,10 +110,13 @@ router.post('/user/orders', requireUser, async (req, res) => {
     const { getFoodItemsCollection } = await import('../mongoClient.js')
     const { ObjectId } = await import('mongodb')
     const foodItems = getFoodItemsCollection()
+    const normalizedItems = []
 
     // Check and decrease item quantities
     for (const item of items) {
       if (!item.itemId) continue
+
+      const orderQuantity = Math.max(1, parseInt(item.qty, 10) || 1)
       
       const itemId = item.itemId instanceof ObjectId ? item.itemId : new ObjectId(item.itemId)
       const foodItem = await foodItems.findOne({ _id: itemId })
@@ -123,7 +126,6 @@ router.post('/user/orders', requireUser, async (req, res) => {
       }
       
       const currentQuantity = foodItem.quantity || 0
-      const orderQuantity = item.qty || 1
       
       if (currentQuantity < orderQuantity) {
         return res.status(400).json({ message: `${item.name} - only ${currentQuantity} available` })
@@ -133,6 +135,15 @@ router.post('/user/orders', requireUser, async (req, res) => {
         { _id: itemId },
         { $set: { quantity: currentQuantity - orderQuantity } }
       )
+
+      normalizedItems.push({
+        ...item,
+        qty: orderQuantity,
+      })
+    }
+
+    if (normalizedItems.length === 0) {
+      return res.status(400).json({ message: 'No valid order items were provided' })
     }
 
     const orders = getOrdersCollection()
@@ -146,8 +157,8 @@ router.post('/user/orders', requireUser, async (req, res) => {
         mobileNumber: req.user.mobileNumber,
         year: req.user.year,
       },
-      items,
-      total: items.reduce((s, it) => s + (Number(it.price) || 0) * (it.qty || 1), 0),
+      items: normalizedItems,
+      total: normalizedItems.reduce((s, it) => s + (Number(it.price) || 0) * (it.qty || 1), 0),
       status: 'pending',
       createdAt: new Date(),
       eta: null,

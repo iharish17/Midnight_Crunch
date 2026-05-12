@@ -28,6 +28,10 @@ function formatStatusLabel(status) {
   return String(status || '').replaceAll('_', ' ')
 }
 
+function getOrderUnits(order) {
+  return (order?.items || []).reduce((sum, item) => sum + (parseInt(item.qty, 10) || 1), 0)
+}
+
 function AdminDashboard({ token, onLogout }) {
   const [orders, setOrders] = useState([])
   const [items, setItems] = useState([])
@@ -259,6 +263,8 @@ function AdminDashboard({ token, onLogout }) {
                   <div className="order-footer">
                     <div className="total">
                       <strong>Total:</strong> Rs. {order.total?.toFixed(2) || '0.00'}
+                      <br />
+                      <strong>Units:</strong> {getOrderUnits(order)}
                     </div>
                     <div className="status-actions">
                       {(() => {

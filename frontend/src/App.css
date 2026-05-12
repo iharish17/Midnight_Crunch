@@ -631,6 +631,29 @@ h2 {
   font-size: 18px;
 }
 
+.order-quantity-control {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.order-quantity-control input {
+  width: 100px;
+  padding: 8px 10px;
+  border: 1px solid rgba(36, 20, 18, 0.2);
+  border-radius: 10px;
+  color: #241412;
+  font: inherit;
+  font-weight: 700;
+  text-align: right;
+  background: #fffdf8;
+}
+
+.order-quantity-control small {
+  color: #756963;
+  font-weight: 700;
+}
+
 .total-row {
   border-color: rgba(255, 186, 69, 0.45);
   background: #fff8e8;
