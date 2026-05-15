@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { adminLogin, adminRegister, checkAdminExists } from '../api'
 import AdminDashboard from '../components/AdminDashboard'
 import Navbar from '../components/Navbar'
@@ -13,6 +14,7 @@ function AdminPage() {
   const [loading, setLoading] = useState(false)
   const [adminExists, setAdminExists] = useState(false)
   const [checkingAdmin, setCheckingAdmin] = useState(true)
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     checkAdminExists()
@@ -72,26 +74,38 @@ function AdminPage() {
               <form onSubmit={handleAuthSubmit} className="auth-form">
                 <div className="form-group">
                   <label htmlFor="admin-email">Admin Email</label>
-                  <input
-                    id="admin-email"
-                    type="email"
-                    placeholder="Enter admin email"
-                    value={authForm.email}
-                    onChange={(e) => setAuthForm((p) => ({ ...p, email: e.target.value }))}
-                    required
-                  />
+                  <div className="admin-input-field">
+                    <input
+                      id="admin-email"
+                      type="email"
+                      placeholder="Enter admin email"
+                      value={authForm.email}
+                      onChange={(e) => setAuthForm((p) => ({ ...p, email: e.target.value }))}
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="admin-password">Password</label>
-                  <input
-                    id="admin-password"
-                    type="password"
-                    placeholder="Enter password (min 6 characters)"
-                    value={authForm.password}
-                    onChange={(e) => setAuthForm((p) => ({ ...p, password: e.target.value }))}
-                    required
-                  />
+                  <div className="admin-input-field admin-input-field--password">
+                    <input
+                      id="admin-password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Enter password (min 6 characters)"
+                      value={authForm.password}
+                      onChange={(e) => setAuthForm((p) => ({ ...p, password: e.target.value }))}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowPassword((current) => !current)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
 
                 <button type="submit" className="btn-auth-submit" disabled={loading}>

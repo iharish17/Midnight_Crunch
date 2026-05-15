@@ -13,7 +13,9 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Request failed' }))
-    throw new Error(error.message || 'Request failed')
+    const requestError = new Error(error.message || 'Request failed')
+    requestError.status = response.status
+    throw requestError
   }
 
   if (response.status === 204) {
@@ -86,6 +88,13 @@ export function createUserOrder(token, items) {
 
 export function getUserOrder(token, id) {
   return request(`/user/orders/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export function cancelUserOrder(token, id) {
+  return request(`/user/orders/${id}`, {
+    method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
 }

@@ -5,10 +5,11 @@ import {
   MapPin,
   ShoppingBag,
 } from 'lucide-react'
-import { createUserOrder, getFoodItems } from '../api'
+import { getFoodItems } from '../api'
 import heroImage from '../assets/midnight-feast-hero.png'
 import Navbar from '../components/Navbar'
 import { showError, showSuccess } from '../utils/toast'
+import { addToCart } from '../utils/cart'
 import '../App.css'
 
 function LandingPage() {
@@ -19,7 +20,6 @@ function LandingPage() {
   const [isAdminLoggedIn] = useState(() => !!localStorage.getItem('adminToken'))
   const [activeItem, setActiveItem] = useState(null)
   const [orderQuantity, setOrderQuantity] = useState(1)
-  const [isOrdering, setIsOrdering] = useState(false)
 
   useEffect(() => {
     getFoodItems()
@@ -52,41 +52,17 @@ function LandingPage() {
     setOrderQuantity(1)
   }
 
-  async function confirmOrder() {
+  function addItemToCart() {
     if (!activeItem) return
-
-    const token = localStorage.getItem('userToken')
-    if (!token) {
-      showError('Please login as a customer to place an order')
-      return
-    }
 
     const availableQuantity = Math.max(0, Number(activeItem.quantity) || 0)
     const normalizedQuantity = Math.max(1, Math.min(parseInt(orderQuantity, 10) || 1, availableQuantity || 1))
 
-    try {
-      setIsOrdering(true)
-      await createUserOrder(token, [
-        {
-          itemId: activeItem._id || activeItem.id,
-          name: activeItem.name,
-          price: Number(activeItem.price),
-          qty: normalizedQuantity,
-          imageUrl: activeItem.image_url || activeItem.imageUrl || '',
-        },
-      ])
-      showSuccess(`Order placed for ${activeItem.name} (x${normalizedQuantity}). Admin has been notified.`)
-      setActiveItem(null)
-      setOrderQuantity(1)
-      // Refetch items to show updated quantity immediately
-      const updatedData = await getFoodItems()
-      const itemsList = Array.isArray(updatedData) ? updatedData : (updatedData.items || [])
-      setItems(itemsList)
-    } catch (orderError) {
-      showError(orderError.message || 'Unable to place order')
-    } finally {
-      setIsOrdering(false)
-    }
+    addToCart(activeItem, normalizedQuantity)
+
+    showSuccess(`${activeItem.name} added to cart (x${normalizedQuantity})`)
+    setActiveItem(null)
+    setOrderQuantity(1)
   }
 
   const unitPrice = Number(activeItem?.price) || 0
@@ -94,9 +70,21 @@ function LandingPage() {
   const clampedQuantity = Math.max(1, Math.min(parseInt(orderQuantity, 10) || 1, maxQuantity))
   const totalPayable = unitPrice * clampedQuantity
 
+  function adjustOrderQuantity(delta) {
+    if (!activeItem) return
+
+    setOrderQuantity((current) => {
+      const currentValue = Math.max(1, Math.min(parseInt(current, 10) || 1, maxQuantity))
+      return Math.max(1, Math.min(currentValue + delta, maxQuantity))
+    })
+  }
+
   return (
     <main className="page-shell">
-      <Navbar userLoggedIn={isLoggedIn} adminLoggedIn={isAdminLoggedIn} />
+      <Navbar
+        userLoggedIn={isLoggedIn}
+        adminLoggedIn={isAdminLoggedIn}
+      />
 
       <section className="hero-section" id="top">
         <div className="hero-copy">
@@ -172,10 +160,10 @@ function LandingPage() {
                   <button
                     type="button"
                     onClick={() => openOrderModal(item)}
-                    aria-label={`Order ${item.name}`}
+                    aria-label={`Add ${item.name} to cart`}
                     disabled={item.quantity <= 0}
                   >
-                    {item.quantity > 0 ? 'Order' : 'Unavailable'}
+                    {item.quantity > 0 ? 'Add to Cart' : 'Unavailable'}
                   </button>
                 </div>
               </article>
@@ -196,7 +184,7 @@ function LandingPage() {
             <div className="order-modal-header">
               <div>
                 <p className="eyebrow">Confirm order</p>
-                <h3 id="order-modal-title">Place {activeItem.name}?</h3>
+                <h3 id="order-modal-title">Add {activeItem.name} to cart?</h3>
               </div>
               <button type="button" className="modal-close-btn" onClick={() => setActiveItem(null)}>
                 <ShoppingBag size={18} />
@@ -212,23 +200,29 @@ function LandingPage() {
               <div className="order-summary-row">
                 <span>Quantity</span>
                 <div className="order-quantity-control">
-                  <input
-                    type="number"
-                    min="1"
-                    max={Math.max(1, Number(activeItem.quantity) || 1)}
-                    step="1"
-                    value={orderQuantity}
-                    onChange={(event) => {
-                      const nextValue = parseInt(event.target.value, 10)
-                      if (Number.isNaN(nextValue)) {
-                        setOrderQuantity('')
-                        return
-                      }
-                      const safeValue = Math.max(1, Math.min(nextValue, Math.max(1, Number(activeItem.quantity) || 1)))
-                      setOrderQuantity(safeValue)
-                    }}
-                    aria-label="Order quantity"
-                  />
+                  <div className="order-qty-stepper" role="group" aria-label="Order quantity">
+                    <button
+                      type="button"
+                      className="order-qty-btn"
+                      onClick={() => adjustOrderQuantity(-1)}
+                      disabled={clampedQuantity <= 1}
+                      aria-label="Decrease quantity"
+                    >
+                      -
+                    </button>
+                    <span className="order-qty-value" aria-live="polite">
+                      {clampedQuantity}
+                    </span>
+                    <button
+                      type="button"
+                      className="order-qty-btn"
+                      onClick={() => adjustOrderQuantity(1)}
+                      disabled={clampedQuantity >= maxQuantity}
+                      aria-label="Increase quantity"
+                    >
+                      +
+                    </button>
+                  </div>
                   <small>Available: {activeItem.quantity || 0}</small>
                 </div>
               </div>
@@ -243,8 +237,8 @@ function LandingPage() {
               <button type="button" className="secondary-order-btn" onClick={() => setActiveItem(null)}>
                 Cancel
               </button>
-              <button type="button" className="primary-order-btn" onClick={confirmOrder} disabled={isOrdering}>
-                {isOrdering ? 'Placing Order...' : 'Confirm Order'}
+              <button type="button" className="primary-order-btn" onClick={addItemToCart}>
+                Add to Cart
               </button>
             </div>
           </div>

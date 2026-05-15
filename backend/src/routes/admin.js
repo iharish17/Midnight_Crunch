@@ -6,6 +6,7 @@ import { getAdminsCollection, getFoodItemsCollection, getOrdersCollection, getUs
 import { requireAdmin } from '../middleware/adminAuth.js'
 
 const router = Router()
+const ADMIN_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 const ORDER_STATUS_FLOW = ['pending', 'confirmed', 'packed', 'on_the_way', 'delivered']
 
@@ -48,19 +49,27 @@ router.post('/admin/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10)
     const token = crypto.randomBytes(32).toString('hex')
-    const tokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    const tokenExpiry = new Date(Date.now() + ADMIN_SESSION_TTL_MS)
+    const session = {
+      token,
+      expiresAt: tokenExpiry,
+      createdAt: new Date(),
+      lastSeenAt: new Date(),
+    }
 
     const result = await admins.insertOne({
       email: normalizedEmail,
       password: hashedPassword,
       sessionToken: token,
       sessionTokenExpiry: tokenExpiry,
+      sessions: [session],
       createdAt: new Date(),
     })
 
     res.status(201).json({
       message: 'Admin registered successfully',
       token,
+      expiresAt: tokenExpiry,
       admin: { id: result.insertedId, email: normalizedEmail },
     })
   } catch (err) {
@@ -102,14 +111,23 @@ router.post('/admin/login', async (req, res) => {
     }
 
     const token = crypto.randomBytes(32).toString('hex')
-    const tokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    const tokenExpiry = new Date(Date.now() + ADMIN_SESSION_TTL_MS)
+    const session = {
+      token,
+      expiresAt: tokenExpiry,
+      createdAt: new Date(),
+      lastSeenAt: new Date(),
+    }
 
     await admins.updateOne(
       { _id: admin._id },
-      { $set: { sessionToken: token, sessionTokenExpiry: tokenExpiry, lastLogin: new Date() } }
+      {
+        $push: { sessions: session },
+        $set: { sessionToken: token, sessionTokenExpiry: tokenExpiry, lastLogin: new Date() },
+      }
     )
 
-    res.json({ token, admin: { id: admin._id, email: admin.email } })
+    res.json({ token, expiresAt: tokenExpiry, admin: { id: admin._id, email: admin.email } })
   } catch (err) {
     res.status(500).json({ message: err.message || 'Login failed' })
   }

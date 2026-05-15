@@ -4,7 +4,8 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { getUserProfile, getUserOrders, getUserOrder } from '../api'
+import { cancelUserOrder, getUserProfile, getUserOrders, getUserOrder } from '../api'
+import { showError, showSuccess } from '../utils/toast'
 import Navbar from '../components/Navbar'
 import '../App.css'
 
@@ -28,6 +29,7 @@ function ProfilePage() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [message, setMessage] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false)
   const [isLoggedIn] = useState(() => !!localStorage.getItem('userToken'))
 
   useEffect(() => {
@@ -61,6 +63,26 @@ function ProfilePage() {
 
   function closeOrderModal() {
     setSelectedOrder(null)
+  }
+
+  async function handleCancelOrder(orderId) {
+    const token = localStorage.getItem('userToken')
+    if (!token) {
+      showError('Please login again')
+      return
+    }
+
+    try {
+      setIsCancellingOrder(true)
+      await cancelUserOrder(token, orderId)
+      setOrders((current) => current.filter((order) => order._id !== orderId))
+      setSelectedOrder(null)
+      showSuccess('Order cancelled successfully')
+    } catch (error) {
+      showError(error.message || 'Unable to cancel order')
+    } finally {
+      setIsCancellingOrder(false)
+    }
   }
 
   function getOrderTitle(order) {
@@ -122,16 +144,16 @@ function ProfilePage() {
                 type="button"
                 onClick={() => handleTrack(order._id)}
               >
-                <div>
-                  <strong>Order #{String(order._id).slice(-6)}</strong>
-                  <small>{new Date(order.createdAt).toLocaleString()}</small>
+                <div className="order-item-main">
+                  <strong className="order-item-id">Order #{String(order._id).slice(-6)}</strong>
+                  <small className="order-item-date">{new Date(order.createdAt).toLocaleString()}</small>
                 </div>
                 <div className="order-meta">
-                  <span>{getOrderTitle(order)}</span>
+                  <span className="order-item-title">{getOrderTitle(order)}</span>
                   <small>Rs. {getOrderTotal(order).toFixed(2)}</small>
                 </div>
-                <div>
-                  <span>Status: {String(order.status).replaceAll('_', ' ')}</span>
+                <div className="order-item-status">
+                  <span className="order-status-pill">Status: {String(order.status).replaceAll('_', ' ')}</span>
                 </div>
               </button>
             ))
@@ -187,6 +209,22 @@ function ProfilePage() {
                   ))}
                 </ul>
               </div>
+            </div>
+
+            <div className="order-modal-actions">
+              <button type="button" className="secondary-order-btn" onClick={closeOrderModal}>
+                Close
+              </button>
+              {selectedOrder.status === 'pending' && (
+                <button
+                  type="button"
+                  className="primary-order-btn"
+                  onClick={() => handleCancelOrder(selectedOrder._id)}
+                  disabled={isCancellingOrder}
+                >
+                  {isCancellingOrder ? 'Cancelling...' : 'Cancel Order'}
+                </button>
+              )}
             </div>
           </div>
         </div>

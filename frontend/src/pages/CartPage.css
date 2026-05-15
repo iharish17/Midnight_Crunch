@@ -1,0 +1,100 @@
+.cart-page {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 28px 0 72px;
+}
+
+.cart-page-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  align-items: start;
+}
+
+.cart-list-simple,
+.cart-summary-simple {
+  display: grid;
+  gap: 12px;
+}
+
+.cart-line-item,
+.cart-summary-simple {
+  padding: 18px;
+  border: 1px solid rgba(36, 20, 18, 0.08);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.cart-line-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.cart-line-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cart-line-main strong {
+  color: #241412;
+  font-size: 15px;
+}
+
+.cart-line-main small {
+  color: #756963;
+  font-weight: 700;
+}
+
+.cart-line-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cart-remove-btn {
+  border: 0;
+  padding: 0;
+  color: #8b3519;
+  font-size: 13px;
+  font-weight: 900;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cart-remove-btn:hover {
+  text-decoration: underline;
+}
+
+.cart-remove-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.cart-place-btn {
+  width: 100%;
+}
+
+@media (max-width: 1020px) {
+  .cart-page-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .cart-page {
+    width: min(100% - 28px, 1180px);
+  }
+
+  .cart-line-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cart-line-actions {
+    justify-content: space-between;
+  }
+}

@@ -14,6 +14,29 @@ const emptyForm = {
 }
 
 const orderStatusFlow = ['pending', 'confirmed', 'packed', 'on_the_way', 'delivered']
+const DAY_FILTER_ALL = 'all'
+
+function getLocalDayKey(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDayLabel(dayKey) {
+  const [year, month, day] = String(dayKey).split('-').map(Number)
+  const date = new Date(year, (month || 1) - 1, day || 1)
+  return date.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
 
 function getNextOrderStatus(currentStatus) {
   const currentIndex = orderStatusFlow.indexOf(currentStatus)
@@ -32,17 +55,57 @@ function getOrderUnits(order) {
   return (order?.items || []).reduce((sum, item) => sum + (parseInt(item.qty, 10) || 1), 0)
 }
 
+function getMergedOrderItems(order) {
+  const merged = new Map()
+
+  for (const item of order?.items || []) {
+    const key = item?.itemId || item?.name || ''
+    if (!key) {
+      continue
+    }
+
+    const qty = Math.max(1, parseInt(item.qty, 10) || 1)
+    const price = Number(item.price) || 0
+
+    if (!merged.has(key)) {
+      merged.set(key, {
+        name: item.name,
+        qty,
+        price,
+      })
+      continue
+    }
+
+    const current = merged.get(key)
+    current.qty += qty
+    current.price += price * qty
+  }
+
+  return Array.from(merged.values())
+}
+
+function getMergedOrderItemsSummary(order) {
+  const mergedItems = getMergedOrderItems(order)
+  if (mergedItems.length === 0) {
+    return 'N/A'
+  }
+
+  return mergedItems
+    .map((item) => `${item.name} x ${item.qty}`)
+    .join(', ')
+}
+
 function AdminDashboard({ token, onLogout }) {
+  const todayDayKey = getLocalDayKey(new Date())
   const [orders, setOrders] = useState([])
   const [items, setItems] = useState([])
   const [itemForm, setItemForm] = useState(emptyForm)
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('orders')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [filterDay, setFilterDay] = useState(todayDayKey)
   const [statusDrafts, setStatusDrafts] = useState({})
   const [itemToDelete, setItemToDelete] = useState(null)
-  const [editingQuantityId, setEditingQuantityId] = useState(null)
-  const [quantityDraft, setQuantityDraft] = useState('')
 
   const loadData = useCallback(async () => {
     try {
@@ -51,6 +114,11 @@ function AdminDashboard({ token, onLogout }) {
       setOrders(ordersData.orders || [])
       setItems(itemsData.items || [])
     } catch (error) {
+      if (error?.status === 401) {
+        onLogout()
+        return
+      }
+
       showError(error.message || 'Failed to load data')
     } finally {
       setLoading(false)
@@ -123,16 +191,30 @@ function AdminDashboard({ token, onLogout }) {
       const parsedQuantity = Math.max(0, parseInt(newQuantity) || 0)
       const result = await updateItemQuantity(token, itemId, parsedQuantity)
       setItems((current) => current.map((item) => (item._id === itemId ? result.item : item)))
-      setEditingQuantityId(null)
-      setQuantityDraft('')
       showSuccess('Item quantity updated successfully')
       // Refetch items to ensure UI is in sync
       await loadData()
     } catch (error) {
+      if (error?.status === 401) {
+        onLogout()
+        return
+      }
+
       showError(error.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleAdjustQuantity(item, delta) {
+    const currentQuantity = Math.max(0, Number(item?.quantity) || 0)
+    const nextQuantity = Math.max(0, currentQuantity + delta)
+
+    if (nextQuantity === currentQuantity) {
+      return
+    }
+
+    handleUpdateQuantity(item._id, nextQuantity)
   }
 
   async function handleUpdateOrderStatus(orderId, newStatus) {
@@ -143,14 +225,35 @@ function AdminDashboard({ token, onLogout }) {
       setStatusDrafts((current) => ({ ...current, [orderId]: newStatus }))
       showSuccess(`Order status updated to ${newStatus}`)
     } catch (error) {
+      if (error?.status === 401) {
+        onLogout()
+        return
+      }
+
       showError(error.message)
     } finally {
       setLoading(false)
     }
   }
 
-  const filteredOrders =
-    filterStatus === 'all' ? orders : orders.filter((order) => order.status === filterStatus)
+  const availableOrderDays = Array.from(
+    new Set(
+      orders
+        .map((order) => getLocalDayKey(order.createdAt))
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => b.localeCompare(a))
+
+  const dayOptions = [DAY_FILTER_ALL, todayDayKey, ...availableOrderDays.filter((dayKey) => dayKey !== todayDayKey)]
+
+  const filteredOrders = orders.filter((order) => {
+    const matchesDay = filterDay === DAY_FILTER_ALL || getLocalDayKey(order.createdAt) === filterDay
+    if (!matchesDay) {
+      return false
+    }
+
+    return filterStatus === 'all' ? true : order.status === filterStatus
+  })
 
   const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.total || 0), 0)
 
@@ -202,6 +305,17 @@ function AdminDashboard({ token, onLogout }) {
             <h2>Orders Received</h2>
             <div className="filter-group">
               <select
+                value={filterDay}
+                onChange={(e) => setFilterDay(e.target.value)}
+                className="filter-select"
+              >
+                {dayOptions.map((dayKey) => (
+                  <option value={dayKey} key={dayKey}>
+                    {dayKey === DAY_FILTER_ALL ? 'All days' : dayKey === todayDayKey ? 'Today' : formatDayLabel(dayKey)}
+                  </option>
+                ))}
+              </select>
+              <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="filter-select"
@@ -222,7 +336,7 @@ function AdminDashboard({ token, onLogout }) {
 
           {filteredOrders.length === 0 ? (
             <div className="empty-state">
-              <p>No orders yet</p>
+              <p>No orders for this day</p>
             </div>
           ) : (
             <div className="orders-grid">
@@ -251,13 +365,7 @@ function AdminDashboard({ token, onLogout }) {
 
                   <div className="order-items">
                     <h4>Items Ordered</h4>
-                    <ul>
-                      {order.items?.map((item, idx) => (
-                        <li key={idx}>
-                          {item.name} x {item.qty || 1} - Rs. {(item.price * (item.qty || 1)).toFixed(2)}
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="order-items-summary">{getMergedOrderItemsSummary(order)}</p>
                   </div>
 
                   <div className="order-footer">
@@ -365,58 +473,38 @@ function AdminDashboard({ token, onLogout }) {
                     <p>{item.description}</p>
                     <span className="item-price">Rs. {Number(item.price).toFixed(2)}</span>
                   </div>
-                  <div className="item-quantity">
-                    {editingQuantityId === item._id ? (
-                      <div className="quantity-edit">
-                        <input
-                          type="number"
-                          min="0"
-                          value={quantityDraft}
-                          onChange={(e) => setQuantityDraft(e.target.value)}
-                          placeholder="Quantity"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleUpdateQuantity(item._id, quantityDraft)}
-                          className="quantity-save-btn"
-                          disabled={loading}
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingQuantityId(null)
-                            setQuantityDraft('')
-                          }}
-                          className="quantity-cancel-btn"
-                          disabled={loading}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
+                  <div className="item-controls">
+                    <button
+                      onClick={() => requestDeleteItem(item)}
+                      className="btn-delete"
+                      disabled={loading}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                    <div className="item-quantity">
                       <div className="quantity-display">
+                        <button
+                          type="button"
+                          className="quantity-step-btn"
+                          onClick={() => handleAdjustQuantity(item, -1)}
+                          disabled={loading || Number(item.quantity || 0) <= 0}
+                          aria-label={`Decrease quantity for ${item.name}`}
+                        >
+                          -
+                        </button>
                         <span className="quantity-label">Qty: {item.quantity || 0}</span>
                         <button
-                          onClick={() => {
-                            setEditingQuantityId(item._id)
-                            setQuantityDraft(String(item.quantity || 0))
-                          }}
-                          className="quantity-edit-btn"
+                          type="button"
+                          className="quantity-step-btn"
+                          onClick={() => handleAdjustQuantity(item, 1)}
                           disabled={loading}
+                          aria-label={`Increase quantity for ${item.name}`}
                         >
-                          Edit
+                          +
                         </button>
                       </div>
-                    )}
+                    </div>
                   </div>
-                  <button
-                    onClick={() => requestDeleteItem(item)}
-                    className="btn-delete"
-                    disabled={loading}
-                  >
-                    <Trash2 size={18} />
-                  </button>
                 </div>
               ))}
             </div>

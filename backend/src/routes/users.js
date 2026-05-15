@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import bcrypt from 'bcrypt'
 import crypto from 'crypto'
+import { ObjectId } from 'mongodb'
 import { getUsersCollection } from '../mongoClient.js'
-import { getOrdersCollection } from '../mongoClient.js'
+import { getOrdersCollection, getFoodItemsCollection } from '../mongoClient.js'
 import { requireUser } from '../middleware/userAuth.js'
 
 const router = Router()
@@ -107,8 +108,6 @@ router.post('/user/orders', requireUser, async (req, res) => {
       return res.status(400).json({ message: 'Order items are required' })
     }
 
-    const { getFoodItemsCollection } = await import('../mongoClient.js')
-    const { ObjectId } = await import('mongodb')
     const foodItems = getFoodItemsCollection()
     const normalizedItems = []
 
@@ -186,13 +185,56 @@ router.get('/user/orders/:id', requireUser, async (req, res) => {
   try {
     const orders = getOrdersCollection()
     const { id } = req.params
-    const { ObjectId } = await import('mongodb')
     if (!ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid order id' })
     const order = await orders.findOne({ _id: new ObjectId(id), userId: req.user._id })
     if (!order) return res.status(404).json({ message: 'Order not found' })
     return res.json({ order })
   } catch (err) {
     return res.status(500).json({ message: err.message })
+  }
+})
+
+router.delete('/user/orders/:id', requireUser, async (req, res) => {
+  try {
+    const orders = getOrdersCollection()
+    const foodItems = getFoodItemsCollection()
+    const { id } = req.params
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid order id' })
+    }
+
+    const orderId = new ObjectId(id)
+    const order = await orders.findOne({ _id: orderId, userId: req.user._id })
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' })
+    }
+
+    if (order.status !== 'pending') {
+      return res.status(400).json({ message: 'Only pending orders can be cancelled' })
+    }
+
+    for (const item of order.items || []) {
+      const itemId = item?.itemId
+      if (!itemId || !ObjectId.isValid(itemId)) {
+        continue
+      }
+
+      const restoreQuantity = Math.max(1, parseInt(item.qty, 10) || 1)
+      await foodItems.updateOne(
+        { _id: new ObjectId(itemId) },
+        {
+          $inc: { quantity: restoreQuantity },
+          $set: { updatedAt: new Date() },
+        },
+      )
+    }
+
+    await orders.deleteOne({ _id: orderId, userId: req.user._id })
+    return res.status(204).send()
+  } catch (err) {
+    return res.status(500).json({ message: err.message || 'Failed to cancel order' })
   }
 })
 

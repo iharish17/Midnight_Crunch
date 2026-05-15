@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ChevronDown,
   Menu,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { showSuccess } from '../utils/toast'
+import { getCartCount, readCart } from '../utils/cart'
 
 const navItems = ['Menu', 'Deals', 'Reviews']
 
@@ -20,9 +21,27 @@ function getNavHref(item) {
 
 function Navbar({ userLoggedIn = false, adminLoggedIn = false }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [cartCount, setCartCount] = useState(() => getCartCount(readCart()))
   const navigate = useNavigate()
 
   const accountMode = adminLoggedIn ? 'admin' : userLoggedIn ? 'user' : 'guest'
+  const shouldShowCartButton = accountMode === 'user' && cartCount > 0
+  const cartLabel = `${String(cartCount).padStart(2, '0')} items`
+
+  useEffect(() => {
+    function syncCartCount() {
+      setCartCount(getCartCount(readCart()))
+    }
+
+    syncCartCount()
+    window.addEventListener('cart-updated', syncCartCount)
+    window.addEventListener('storage', syncCartCount)
+
+    return () => {
+      window.removeEventListener('cart-updated', syncCartCount)
+      window.removeEventListener('storage', syncCartCount)
+    }
+  }, [])
 
   const handleLogout = () => {
     if (adminLoggedIn) {
@@ -62,6 +81,13 @@ function Navbar({ userLoggedIn = false, adminLoggedIn = false }) {
             )
           ))}
         </nav>
+
+        {shouldShowCartButton && (
+          <Link to="/cart" className="nav-cart-btn">
+            <ShoppingBag size={16} />
+            <span>{cartLabel}</span>
+          </Link>
+        )}
 
         <details className="profile-menu">
           <summary>

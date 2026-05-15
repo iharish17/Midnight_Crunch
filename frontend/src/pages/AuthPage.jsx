@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Building2, Eye, LockKeyhole, Mail, UserRound } from 'lucide-react'
+import { ArrowLeft, Building2, Eye, EyeOff, LockKeyhole, Mail, UserRound } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { userRegister, userLogin } from '../api'
 import Navbar from '../components/Navbar'
@@ -19,6 +19,7 @@ function AuthPage({ mode, onAuthSuccess }) {
     year: '',
     password: '',
   })
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 
   function handleChange(field, value) {
@@ -136,13 +137,20 @@ function AuthPage({ mode, onAuthSuccess }) {
             <span>
               <LockKeyhole size={19} />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 placeholder="Enter password"
                 value={form.password}
                 onChange={(e) => handleChange('password', e.target.value)}
                 required
               />
-              <Eye size={18} />
+              <button
+                type="button"
+                className="auth-password-toggle"
+                onClick={() => setShowPassword((current) => !current)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </span>
           </label>
           )}

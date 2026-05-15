@@ -1,6 +1,7 @@
 import { Route, Routes, Navigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import AdminPage from './pages/AdminPage'
+import CartPage from './pages/CartPage'
 import AuthPage from './pages/AuthPage'
 import DealsPage from './pages/DealsPage'
 import LandingPage from './pages/LandingPage'
@@ -29,6 +30,7 @@ function App() {
     <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/deals" element={<DealsPage />} />
+        <Route path="/cart" element={isLoggedIn ? <CartPage /> : <Navigate to="/login" />} />
         <Route
           path="/login"
           element={isLoggedIn ? <Navigate to="/profile" /> : <AuthPage mode="login" onAuthSuccess={() => setIsLoggedIn(true)} />}
