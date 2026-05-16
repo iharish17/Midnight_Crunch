@@ -556,6 +556,38 @@ button[class*="btn-"] {
   min-width: 200px;
 }
 
+.quantity-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.quantity-input {
+  width: 100%;
+  min-width: 72px;
+  padding: 8px 10px;
+  border: 1px solid #d9cfc5;
+  border-radius: 6px;
+  background: white;
+  font-weight: 700;
+  color: #241412;
+}
+
+.btn-save-quantity {
+  background: #ffba45;
+  border: 1px solid #ffba45;
+  color: #241412;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-save-quantity:hover:not(:disabled) {
+  background: #ff9f00;
+}
+
 .quantity-display {
   display: flex;
   align-items: center;

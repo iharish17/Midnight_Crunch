@@ -105,6 +105,7 @@ function AdminDashboard({ token, onLogout }) {
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterDay, setFilterDay] = useState(todayDayKey)
   const [statusDrafts, setStatusDrafts] = useState({})
+  const [quantityDrafts, setQuantityDrafts] = useState({})
   const [itemToDelete, setItemToDelete] = useState(null)
 
   const loadData = useCallback(async () => {
@@ -113,6 +114,12 @@ function AdminDashboard({ token, onLogout }) {
       const [ordersData, itemsData] = await Promise.all([getAdminOrders(token), getAdminFoodItems(token)])
       setOrders(ordersData.orders || [])
       setItems(itemsData.items || [])
+      // Initialize quantity drafts
+      const drafts = {}
+      ;(itemsData.items || []).forEach((it) => {
+        drafts[it._id] = Number(it.quantity || 0)
+      })
+      setQuantityDrafts(drafts)
     } catch (error) {
       if (error?.status === 401) {
         onLogout()
@@ -191,6 +198,7 @@ function AdminDashboard({ token, onLogout }) {
       const parsedQuantity = Math.max(0, parseInt(newQuantity) || 0)
       const result = await updateItemQuantity(token, itemId, parsedQuantity)
       setItems((current) => current.map((item) => (item._id === itemId ? result.item : item)))
+      setQuantityDrafts((d) => ({ ...d, [itemId]: Number(result.item.quantity || 0) }))
       showSuccess('Item quantity updated successfully')
       // Refetch items to ensure UI is in sync
       await loadData()
@@ -215,6 +223,15 @@ function AdminDashboard({ token, onLogout }) {
     }
 
     handleUpdateQuantity(item._id, nextQuantity)
+  }
+
+  function handleQuantityDraftChange(itemId, value) {
+    setQuantityDrafts((d) => ({ ...d, [itemId]: value }))
+  }
+
+  async function handleSaveQuantity(item) {
+    const draft = quantityDrafts[item._id]
+    await handleUpdateQuantity(item._id, draft)
   }
 
   async function handleUpdateOrderStatus(orderId, newStatus) {
@@ -482,25 +499,23 @@ function AdminDashboard({ token, onLogout }) {
                       <Trash2 size={18} />
                     </button>
                     <div className="item-quantity">
-                      <div className="quantity-display">
+                      <div className="quantity-edit">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={quantityDrafts[item._id] ?? Number(item.quantity || 0)}
+                          onChange={(e) => handleQuantityDraftChange(item._id, e.target.value)}
+                          className="quantity-input"
+                          aria-label={`Quantity for ${item.name}`}
+                        />
                         <button
                           type="button"
-                          className="quantity-step-btn"
-                          onClick={() => handleAdjustQuantity(item, -1)}
-                          disabled={loading || Number(item.quantity || 0) <= 0}
-                          aria-label={`Decrease quantity for ${item.name}`}
-                        >
-                          -
-                        </button>
-                        <span className="quantity-label">Qty: {item.quantity || 0}</span>
-                        <button
-                          type="button"
-                          className="quantity-step-btn"
-                          onClick={() => handleAdjustQuantity(item, 1)}
+                          className="btn-save-quantity"
+                          onClick={() => handleSaveQuantity(item)}
                           disabled={loading}
-                          aria-label={`Increase quantity for ${item.name}`}
                         >
-                          +
+                          Save
                         </button>
                       </div>
                     </div>
