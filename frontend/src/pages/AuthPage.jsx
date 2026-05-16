@@ -116,7 +116,7 @@ function AuthPage({ mode, onAuthSuccess }) {
         })
         localStorage.setItem('userToken', response.token)
         if (onAuthSuccess) onAuthSuccess()
-        showSuccess('Login successful! Redirecting...')
+        showSuccess('Login successful! Redirecting to profile...')
         navigate('/profile')
       }
     } catch (error) {
