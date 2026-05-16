@@ -6,6 +6,7 @@ let adminsCollection
 let usersCollection
 let foodItemsCollection
 let ordersCollection
+let emailOtpsCollection
 
 export async function initMongo() {
   try {
@@ -23,10 +24,13 @@ export async function initMongo() {
     usersCollection = db.collection('users')
     foodItemsCollection = db.collection('food_items')
     ordersCollection = db.collection('orders')
+    emailOtpsCollection = db.collection('email_otps')
 
     // ✅ Create indexes
     await adminsCollection.createIndex({ email: 1 }, { unique: true })
     await usersCollection.createIndex({ email: 1 }, { unique: true })
+    await emailOtpsCollection.createIndex({ email: 1 }, { unique: true })
+    await emailOtpsCollection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
     await foodItemsCollection.createIndex({ createdAt: -1 })
     await ordersCollection.createIndex({ userId: 1 })
     await ordersCollection.createIndex({ createdAt: -1 })
@@ -52,6 +56,11 @@ export function getUsersCollection() {
 export function getFoodItemsCollection() {
   if (!foodItemsCollection) throw new Error('MongoDB not initialized')
   return foodItemsCollection
+}
+
+export function getEmailOtpsCollection() {
+  if (!emailOtpsCollection) throw new Error('MongoDB not initialized')
+  return emailOtpsCollection
 }
 
 export function getOrdersCollection() {

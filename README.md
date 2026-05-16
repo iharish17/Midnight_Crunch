@@ -29,6 +29,17 @@ Create/update `backend/.env`:
 PORT=5000
 FRONTEND_ORIGIN=http://127.0.0.1:5173
 MONGODB_URI=mongodb://localhost:27017
+OTP_SECRET=replace_with_a_strong_secret
+OTP_EXPIRY_MINUTES=10
+OTP_RESEND_COOLDOWN_SECONDS=60
+OTP_MAX_VERIFY_ATTEMPTS=5
+
+# SMTP for OTP emails
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@example.com
+SMTP_PASS=your_app_password
+SMTP_FROM=Midnight Crunch <your_email@example.com>
 # or for MongoDB Atlas:
 # MONGODB_URI=mongodb+srv://username:password@cluster.xxxxx.mongodb.net/midnight_crunch
 ```
@@ -82,6 +93,8 @@ Visit: http://127.0.0.1:5173
 - `DELETE /api/admin/items/:id` - Delete food item
 
 **Users (requires Bearer token):**
+- `POST /api/user/register/send-otp` - Send OTP to email for signup verification
+- `POST /api/user/register/verify-otp` - Verify email OTP
 - `POST /api/user/register` - Register new user
 - `POST /api/user/login` - User login
 

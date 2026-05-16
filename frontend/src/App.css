@@ -928,9 +928,55 @@ h2 {
 .auth-submit {
   min-height: 54px;
   border-radius: 17px;
+  border: 0;
   color: #241412;
   font-weight: 950;
   background: #ffba45;
+  cursor: pointer;
+}
+
+.otp-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.otp-actions-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.otp-action-btn {
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 13px;
+  font-size: 14px;
+}
+
+.otp-status {
+  color: #8a5a1c;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.otp-status.verified {
+  color: #1b7a33;
+}
+
+.otp-actions-row input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(36, 20, 18, 0.12);
+  border-radius: 13px;
+  padding: 0 12px;
+  color: #241412;
+  background: #fffaf2;
+}
+
+.otp-actions-row input:focus-visible {
+  outline: 2px solid rgba(255, 186, 69, 0.55);
+  outline-offset: 1px;
 }
 
 .auth-switch {

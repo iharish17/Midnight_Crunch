@@ -57,6 +57,20 @@ export function userRegister(data) {
   })
 }
 
+export function sendUserRegisterOtp(email) {
+  return request('/user/register/send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+}
+
+export function verifyUserRegisterOtp(email, otp) {
+  return request('/user/register/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp }),
+  })
+}
+
 export function userLogin(credentials) {
   return request('/user/login', {
     method: 'POST',

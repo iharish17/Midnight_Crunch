@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowLeft, Building2, Eye, EyeOff, LockKeyhole, Mail, UserRound } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { userRegister, userLogin } from '../api'
+import { userRegister, userLogin, sendUserRegisterOtp, verifyUserRegisterOtp } from '../api'
 import Navbar from '../components/Navbar'
 import { showSuccess, showError } from '../utils/toast'
 import '../App.css'
@@ -21,15 +21,74 @@ function AuthPage({ mode, onAuthSuccess }) {
   })
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpVerified, setOtpVerified] = useState(false)
+  const [otpSending, setOtpSending] = useState(false)
+  const [otpVerifying, setOtpVerifying] = useState(false)
 
   function handleChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  function handleEmailChange(value) {
+    handleChange('email', value)
+    setOtpCode('')
+    setOtpSent(false)
+    setOtpVerified(false)
+  }
+
+  async function handleSendOtp() {
+    if (!form.email.trim()) {
+      showError('Please enter your email first')
+      return
+    }
+
+    setOtpSending(true)
+    try {
+      await sendUserRegisterOtp(form.email)
+      setOtpSent(true)
+      setOtpVerified(false)
+      showSuccess('OTP sent to your email')
+    } catch (error) {
+      showError(error.message || 'Failed to send OTP')
+    } finally {
+      setOtpSending(false)
+    }
+  }
+
+  async function handleVerifyOtp() {
+    if (!form.email.trim()) {
+      showError('Please enter your email first')
+      return
+    }
+
+    if (!otpCode.trim()) {
+      showError('Please enter the OTP')
+      return
+    }
+
+    setOtpVerifying(true)
+    try {
+      await verifyUserRegisterOtp(form.email, otpCode)
+      setOtpVerified(true)
+      showSuccess('Email verified successfully')
+    } catch (error) {
+      setOtpVerified(false)
+      showError(error.message || 'OTP verification failed')
+    } finally {
+      setOtpVerifying(false)
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
 
     if (isRegister && registerStep === 1) {
+      if (!otpVerified) {
+        showError('Please verify your email with OTP before continuing')
+        return
+      }
       setRegisterStep(2)
       return
     }
@@ -108,11 +167,50 @@ function AuthPage({ mode, onAuthSuccess }) {
                 type="email"
                 placeholder="Enter email"
                 value={form.email}
-                onChange={(e) => handleChange('email', e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                 required
               />
             </span>
           </label>
+          )}
+
+          {isRegister && registerStep === 1 && (
+            <div className="otp-panel">
+              <div className="otp-actions-row">
+                <button
+                  className="auth-submit otp-action-btn"
+                  type="button"
+                  disabled={otpSending || otpVerifying}
+                  onClick={handleSendOtp}
+                >
+                  {otpSending ? 'Sending OTP...' : otpSent ? 'Resend OTP' : 'Send OTP'}
+                </button>
+                <span className={`otp-status ${otpVerified ? 'verified' : ''}`}>
+                  {otpVerified ? 'Email verified' : otpSent ? 'OTP sent' : 'OTP not sent'}
+                </span>
+              </div>
+
+              {otpSent && !otpVerified && (
+                <div className="otp-actions-row">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="Enter 6-digit OTP"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  />
+                  <button
+                    className="auth-submit otp-action-btn"
+                    type="button"
+                    disabled={otpVerifying || otpSending}
+                    onClick={handleVerifyOtp}
+                  >
+                    {otpVerifying ? 'Verifying...' : 'Verify OTP'}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {isRegister && registerStep === 1 && (
