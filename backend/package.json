@@ -8,6 +8,7 @@
     "start": "node src/server.js"
   },
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
     "@supabase/supabase-js": "^2.86.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",

@@ -1,12 +1,10 @@
 import cors from 'cors'
-import dotenv from 'dotenv'
+import 'dotenv/config'
 import express from 'express'
 import { initMongo, closeMongo } from './mongoClient.js'
 import adminRoutes from './routes/admin.js'
 import userRoutes from './routes/users.js'
 import itemRoutes from './routes/items.js'
-
-dotenv.config()
 
 const app = express()
 const port = process.env.PORT || 5000
@@ -24,7 +22,6 @@ function normalizeOrigins(value) {
 
 const allowedFrontendOrigins = new Set([
   ...normalizeOrigins(process.env.FRONTEND_ORIGIN),
-  'http://127.0.0.1:5173',
   'http://localhost:5173',
 ])
 

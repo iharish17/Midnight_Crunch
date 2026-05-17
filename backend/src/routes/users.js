@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import bcrypt from 'bcrypt'
 import crypto from 'crypto'
-import nodemailer from 'nodemailer'
+import sgMail from '@sendgrid/mail'
 import { ObjectId } from 'mongodb'
 import { getUsersCollection, getEmailOtpsCollection } from '../mongoClient.js'
 import { getOrdersCollection, getFoodItemsCollection } from '../mongoClient.js'
@@ -9,11 +9,22 @@ import { requireUser } from '../middleware/userAuth.js'
 
 const router = Router()
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const OTP_EXPIRY_MINUTES = Number(process.env.OTP_EXPIRY_MINUTES || 10)
-const OTP_RESEND_COOLDOWN_SECONDS = Number(process.env.OTP_RESEND_COOLDOWN_SECONDS || 60)
-const OTP_MAX_VERIFY_ATTEMPTS = Number(process.env.OTP_MAX_VERIFY_ATTEMPTS || 5)
-const OTP_SECRET = process.env.OTP_SECRET || 'dev-otp-secret-change-me'
-let otpTransporter
+
+function getOtpConfig() {
+  return {
+    expiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES || 10),
+    resendCooldownSeconds: Number(process.env.OTP_RESEND_COOLDOWN_SECONDS || 60),
+    maxVerifyAttempts: Number(process.env.OTP_MAX_VERIFY_ATTEMPTS || 5),
+    secret: process.env.OTP_SECRET || 'dev-otp-secret-change-me',
+  }
+}
+
+function getSendGridConfig() {
+  return {
+    apiKey: process.env.SENDGRID_API_KEY,
+    from: process.env.SENDGRID_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_FROM,
+  }
+}
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
@@ -24,53 +35,58 @@ function generateOtpCode() {
 }
 
 function hashOtp(email, otp) {
-  return crypto.createHash('sha256').update(`${email}:${otp}:${OTP_SECRET}`).digest('hex')
+  const { secret } = getOtpConfig()
+  return crypto.createHash('sha256').update(`${email}:${otp}:${secret}`).digest('hex')
 }
 
-function getOtpTransporter() {
-  if (otpTransporter) {
-    return otpTransporter
+function isSendGridAuthError(err) {
+  const statusCode = err?.code || err?.response?.statusCode
+  return statusCode === 401 || statusCode === 403
+}
+
+function sendOtpErrorResponse(err, res) {
+  if (isSendGridAuthError(err)) {
+    console.error('SendGrid rejected OTP email request:', {
+      statusCode: err?.code || err?.response?.statusCode,
+      message: err?.message,
+      errors: err?.response?.body?.errors,
+    })
+
+    return res.status(502).json({
+      message: 'OTP email service is not authorized. Check SENDGRID_API_KEY and verify SENDGRID_FROM in SendGrid.',
+    })
   }
 
-  const host = process.env.SMTP_HOST
-  const port = Number(process.env.SMTP_PORT || 587)
-  const user = process.env.SMTP_USER
-  const pass = process.env.SMTP_PASS
-
-  if (!host || !user || !pass) {
-    throw new Error('SMTP is not configured for OTP emails')
-  }
-
-  otpTransporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: process.env.SMTP_SECURE === 'true' || port === 465,
-    auth: { user, pass },
-  })
-
-  return otpTransporter
+  return res.status(500).json({ message: err.message || 'Failed to send OTP' })
 }
 
 async function sendRegistrationOtpEmail(email, otp) {
-  const from = process.env.OTP_EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER
-  if (!from) {
-    throw new Error('OTP email sender is not configured')
+  const { apiKey, from } = getSendGridConfig()
+  const { expiryMinutes } = getOtpConfig()
+
+  if (!apiKey) {
+    throw new Error('SendGrid API key is not configured for OTP emails')
   }
 
-  const transporter = getOtpTransporter()
+  if (!from) {
+    throw new Error('SendGrid from address is not configured')
+  }
 
-  await transporter.sendMail({
+  sgMail.setApiKey(apiKey)
+
+  await sgMail.send({
     from,
     to: email,
     subject: 'Midnight Crunch OTP Verification',
-    text: `Your Midnight Crunch OTP is ${otp}. It will expire in ${OTP_EXPIRY_MINUTES} minutes.`,
-    html: `<p>Your Midnight Crunch OTP is <strong>${otp}</strong>.</p><p>This code expires in ${OTP_EXPIRY_MINUTES} minutes.</p>`,
+    text: `Your Midnight Crunch OTP is ${otp}. It will expire in ${expiryMinutes} minutes.`,
+    html: `<p>Your Midnight Crunch OTP is <strong>${otp}</strong>.</p><p>This code expires in ${expiryMinutes} minutes.</p>`,
   })
 }
 
 // Send registration OTP
 router.post('/user/register/send-otp', async (req, res) => {
   try {
+    const { expiryMinutes, resendCooldownSeconds } = getOtpConfig()
     const email = normalizeEmail(req.body?.email)
 
     if (!email) {
@@ -103,6 +119,7 @@ router.post('/user/register/send-otp', async (req, res) => {
     }
 
     const otp = generateOtpCode()
+    await sendRegistrationOtpEmail(email, otp)
 
     await otps.updateOne(
       { email },
@@ -113,8 +130,8 @@ router.post('/user/register/send-otp', async (req, res) => {
           attempts: 0,
           verified: false,
           verifiedAt: null,
-          expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
-          resendAvailableAt: new Date(Date.now() + OTP_RESEND_COOLDOWN_SECONDS * 1000),
+          expiresAt: new Date(Date.now() + expiryMinutes * 60 * 1000),
+          resendAvailableAt: new Date(Date.now() + resendCooldownSeconds * 1000),
           updatedAt: new Date(),
         },
         $setOnInsert: {
@@ -124,21 +141,20 @@ router.post('/user/register/send-otp', async (req, res) => {
       { upsert: true },
     )
 
-    await sendRegistrationOtpEmail(email, otp)
-
     return res.json({
       message: 'OTP sent to your email',
-      expiresInMinutes: OTP_EXPIRY_MINUTES,
-      resendAfterSeconds: OTP_RESEND_COOLDOWN_SECONDS,
+      expiresInMinutes: expiryMinutes,
+      resendAfterSeconds: resendCooldownSeconds,
     })
   } catch (err) {
-    return res.status(500).json({ message: err.message || 'Failed to send OTP' })
+    return sendOtpErrorResponse(err, res)
   }
 })
 
 // Verify registration OTP
 router.post('/user/register/verify-otp', async (req, res) => {
   try {
+    const { maxVerifyAttempts } = getOtpConfig()
     const email = normalizeEmail(req.body?.email)
     const otp = String(req.body?.otp || '').trim()
 
@@ -161,7 +177,7 @@ router.post('/user/register/verify-otp', async (req, res) => {
       return res.status(400).json({ message: 'OTP expired. Please request a new OTP' })
     }
 
-    if ((record.attempts || 0) >= OTP_MAX_VERIFY_ATTEMPTS) {
+    if ((record.attempts || 0) >= maxVerifyAttempts) {
       return res.status(429).json({ message: 'Too many failed attempts. Request a new OTP' })
     }
 
@@ -175,13 +191,13 @@ router.post('/user/register/verify-otp', async (req, res) => {
         },
       )
 
-      if (nextAttempts >= OTP_MAX_VERIFY_ATTEMPTS) {
+      if (nextAttempts >= maxVerifyAttempts) {
         return res.status(429).json({ message: 'Too many failed attempts. Request a new OTP' })
       }
 
       return res.status(400).json({
         message: 'Invalid OTP',
-        remainingAttempts: OTP_MAX_VERIFY_ATTEMPTS - nextAttempts,
+        remainingAttempts: maxVerifyAttempts - nextAttempts,
       })
     }
 

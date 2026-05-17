@@ -34,12 +34,12 @@ OTP_EXPIRY_MINUTES=10
 OTP_RESEND_COOLDOWN_SECONDS=60
 OTP_MAX_VERIFY_ATTEMPTS=5
 
-# SMTP for OTP emails
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email@example.com
-SMTP_PASS=your_app_password
-SMTP_FROM=Midnight Crunch <your_email@example.com>
+# OTP email delivery via SendGrid API
+SENDGRID_API_KEY=your_sendgrid_api_key
+SENDGRID_FROM=Midnight Crunch <verified_sender@yourdomain.com>
+
+# Optional fallback alias used by older configs
+# OTP_EMAIL_FROM=Midnight Crunch <verified_sender@yourdomain.com>
 # or for MongoDB Atlas:
 # MONGODB_URI=mongodb+srv://username:password@cluster.xxxxx.mongodb.net/midnight_crunch
 ```
